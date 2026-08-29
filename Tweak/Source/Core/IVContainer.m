@@ -40,21 +40,6 @@ NSString *const kIVDefaultCID = @"default";
         _appLanguage = [dict[@"appLanguage"] isKindOfClass:[NSString class]] ? [dict[@"appLanguage"] copy] : nil;
         _regionCountry = [dict[@"regionCountry"] isKindOfClass:[NSString class]] ? [dict[@"regionCountry"] copy] : nil;
         _cameraVideoPath = [dict[@"cameraVideoPath"] isKindOfClass:[NSString class]] ? [dict[@"cameraVideoPath"] copy] : nil;
-        _autoSwipeEnabled = [dict[@"autoSwipeEnabled"] boolValue];
-        if ([dict[@"autoSwipeMessages"] isKindOfClass:[NSArray class]]) {
-            // Keep only strings — a corrupt plist must never hand a non-string to
-            // the swipe engine's message picker.
-            NSMutableArray<NSString *> *msgs = [NSMutableArray new];
-            for (id m in (NSArray *)dict[@"autoSwipeMessages"]) {
-                if ([m isKindOfClass:[NSString class]] && ((NSString *)m).length) [msgs addObject:[m copy]];
-            }
-            _autoSwipeMessages = msgs.count ? [msgs copy] : nil;
-        }
-        _autoSwipeCount = [dict[@"autoSwipeCount"] isKindOfClass:[NSNumber class]] ? [dict[@"autoSwipeCount"] integerValue] : 0;
-        _autoSwipeMinDelay = [dict[@"autoSwipeMinDelay"] isKindOfClass:[NSNumber class]] ? [dict[@"autoSwipeMinDelay"] doubleValue] : 0;
-        _autoSwipeMaxDelay = [dict[@"autoSwipeMaxDelay"] isKindOfClass:[NSNumber class]] ? [dict[@"autoSwipeMaxDelay"] doubleValue] : 0;
-        _autoSwipeMethod = [dict[@"autoSwipeMethod"] isKindOfClass:[NSNumber class]] ? [dict[@"autoSwipeMethod"] integerValue] : 0;
-        _autoSwipeLikePercent = [dict[@"autoSwipeLikePercent"] isKindOfClass:[NSNumber class]] ? [dict[@"autoSwipeLikePercent"] integerValue] : 50;
         _createdAt = [dict[@"createdAt"] isKindOfClass:[NSDate class]] ? dict[@"createdAt"] : [NSDate date];
         _lastUsedAt = [dict[@"lastUsedAt"] isKindOfClass:[NSDate class]] ? dict[@"lastUsedAt"] : nil;
     }
@@ -75,13 +60,6 @@ NSString *const kIVDefaultCID = @"default";
     if (self.appLanguage) d[@"appLanguage"] = self.appLanguage;
     if (self.regionCountry) d[@"regionCountry"] = self.regionCountry;
     if (self.cameraVideoPath) d[@"cameraVideoPath"] = self.cameraVideoPath;
-    if (self.autoSwipeEnabled) d[@"autoSwipeEnabled"] = @(YES);
-    if (self.autoSwipeMessages.count) d[@"autoSwipeMessages"] = self.autoSwipeMessages;
-    if (self.autoSwipeCount > 0) d[@"autoSwipeCount"] = @(self.autoSwipeCount);
-    if (self.autoSwipeMinDelay > 0) d[@"autoSwipeMinDelay"] = @(self.autoSwipeMinDelay);
-    if (self.autoSwipeMaxDelay > 0) d[@"autoSwipeMaxDelay"] = @(self.autoSwipeMaxDelay);
-    if (self.autoSwipeMethod != 0) d[@"autoSwipeMethod"] = @(self.autoSwipeMethod);
-    if (self.autoSwipeLikePercent != 50) d[@"autoSwipeLikePercent"] = @(self.autoSwipeLikePercent);
     d[@"createdAt"] = self.createdAt ?: [NSDate date];
     if (self.lastUsedAt) d[@"lastUsedAt"] = self.lastUsedAt;
     return [d copy];

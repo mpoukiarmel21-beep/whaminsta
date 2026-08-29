@@ -8,7 +8,6 @@
 //
 
 #import "IVL10n.h"
-#import "../Spoof/IVLocaleSpoof.h"
 #import <UIKit/UIKit.h>
 
 // Table de traduction : clé -> { langue : chaîne }.
@@ -30,12 +29,10 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IVL10nT
             @"panel.activate"   : @{ @"fr" : FR(@"Activer ce conteneur"), @"en" : @"Activate this container", @"es" : @"Activar este contenedor", @"de" : @"Diesen Container aktivieren", @"it" : @"Attiva questo contenitore", @"pt" : @"Ativar este contêiner" },
             @"panel.rename"     : @{ @"fr" : FR(@"Renommer"), @"en" : @"Rename", @"es" : @"Renombrar", @"de" : @"Umbenennen", @"it" : @"Rinomina", @"pt" : @"Renomear" },
             @"panel.delete"     : @{ @"fr" : FR(@"Supprimer"), @"en" : @"Delete", @"es" : @"Eliminar", @"de" : @"Löschen", @"it" : @"Elimina", @"pt" : @"Excluir" },
-            @"panel.langs"      : @{ @"fr" : FR(@"Langue & région"), @"en" : @"Language & region", @"es" : @"Idioma y región", @"de" : @"Sprache und Region", @"it" : @"Lingua e regione", @"pt" : @"Idioma e região" },
             @"panel.locale"     : @{ @"fr" : FR(@"Langue de l'application"), @"en" : @"App language", @"es" : @"Idioma de la aplicación", @"de" : @"App-Sprache", @"it" : @"Lingua dell'app", @"pt" : @"Idioma do aplicativo" },
             @"panel.region"     : @{ @"fr" : FR(@"Pays / région"), @"en" : @"Country / region", @"es" : @"País / región", @"de" : @"Land / Region", @"it" : @"Paese / regione", @"pt" : @"País / região" },
             @"panel.auto"       : @{ @"fr" : FR(@"Automatique (système)"), @"en" : @"Automatic (system)", @"es" : @"Automático (sistema)", @"de" : @"Automatisch (System)", @"it" : @"Automatico (sistema)", @"pt" : @"Automático (sistema)" },
             @"panel.camera"     : @{ @"fr" : FR(@"Caméra"), @"en" : @"Camera", @"es" : @"Cámara", @"de" : @"Kamera", @"it" : @"Fotocamera", @"pt" : @"Câmera" },
-            @"panel.swipe"      : @{ @"fr" : FR(@"Auto-swipe"), @"en" : @"Auto-swipe", @"es" : @"Auto-swipe", @"de" : @"Auto-Swipe", @"it" : @"Auto-swipe", @"pt" : @"Auto-swipe" },
             @"panel.reset"      : @{ @"fr" : FR(@"Réinitialiser tout"), @"en" : @"Reset everything", @"es" : @"Restablecer todo", @"de" : @"Alles zurücksetzen", @"it" : @"Azzera tutto", @"pt" : @"Redefinir tudo" },
             @"panel.logs"       : @{ @"fr" : FR(@"Journal / Logs"), @"en" : @"Journal / Logs", @"es" : @"Registro / Logs", @"de" : @"Journal / Logs", @"it" : @"Registro / Log", @"pt" : @"Registro / Logs" },
             @"panel.close"      : @{ @"fr" : FR(@"Fermer"), @"en" : @"Close", @"es" : @"Cerrar", @"de" : @"Schließen", @"it" : @"Chiudi", @"pt" : @"Fechar" },
@@ -49,10 +46,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IVL10nT
             @"panel.activated"  : @{ @"fr" : FR(@"Conteneur activé"), @"en" : @"Container activated", @"es" : @"Contenedor activado", @"de" : @"Container aktiviert", @"it" : @"Contenitore attivato", @"pt" : @"Contêiner ativado" },
             @"panel.activated.m": @{ @"fr" : FR(@"« %@ » est prêt.\nL'app va se fermer — rouvre-la pour l'utiliser."), @"en" : @"\u00ab %@ \u00bb is ready.\nThe app will close — reopen it to use it.", @"es" : @"\u00ab %@ \u00bb está listo.\nLa aplicación se cerrará; vuelve a abrirla para usarla.", @"de" : @"\u00ab %@ \u00bb ist bereit.\nDie App wird geschlossen — öffne sie erneut, um sie zu nutzen.", @"it" : @"\u00ab %@ \u00bb è pronto.\nL'app si chiuderà; riapri per usarla.", @"pt" : @"\u00ab %@ \u00bb está pronto.\nO app fechará; reabra para usá-lo." },
             @"panel.device"     : @{ @"fr" : FR(@"Appareil (infos)"), @"en" : @"Device (info)", @"es" : @"Dispositivo (info)", @"de" : @"Gerät (Info)", @"it" : @"Dispositivo (info)", @"pt" : @"Dispositivo (info)" },
-            @"panel.settingsFor": @{ @"fr" : FR(@"Réglages — %@"), @"en" : @"Settings — %@", @"es" : @"Ajustes — %@", @"de" : @"Einstellungen — %@", @"it" : @"Impostazioni — %@", @"pt" : @"Configurações — %@" },
-            @"panel.settings.note": @{ @"fr" : FR(@"Prend effet au prochain démarrage de l'app."), @"en" : @"Takes effect on the next app start.", @"es" : @"Tiene efecto en el próximo inicio de la app.", @"de" : @"Wird beim nächsten App-Start wirksam.", @"it" : @"Ha effetto al prossimo avvio dell'app.", @"pt" : @"Entra em vigor na próxima inicialização do app." },
-            @"panel.langFmt"    : @{ @"fr" : FR(@"Langue : %@"), @"en" : @"Language: %@", @"es" : @"Idioma: %@", @"de" : @"Sprache: %@", @"it" : @"Lingua: %@", @"pt" : @"Idioma: %@" },
-            @"panel.regionFmt"  : @{ @"fr" : FR(@"Région : %@"), @"en" : @"Region: %@", @"es" : @"Región: %@", @"de" : @"Region: %@", @"it" : @"Regione: %@", @"pt" : @"Região: %@" },
             @"panel.switchFoot" : @{ @"fr" : FR(@"Changer de conteneur actif…"), @"en" : @"Switch the active container…", @"es" : @"Cambiar el contenedor activo…", @"de" : @"Aktiven Container wechseln…", @"it" : @"Cambia il contenitore attivo…", @"pt" : @"Mudar o contêiner ativo…" },
             @"panel.isoNote"    : @{ @"fr" : FR(@"Isolation inactive — vous êtes sur le compte réel. Ne vous connectez pas ici ; fermez complètement l'app puis rouvrez-la."), @"en" : @"Isolation inactive — you are on the real account. Do not sign in here; fully close the app then reopen it.", @"es" : @"Aislamiento inactivo — estás en la cuenta real. No inicies sesión aquí; cierra la app por completo y vuelve a abrirla.", @"de" : @"Isolation inaktiv — Sie sind im echten Konto. Melden Sie sich hier nicht an; schließen Sie die App vollständig und öffnen Sie sie erneut.", @"it" : @"Isolamento inattivo — sei sull'account reale. Non accedere qui; chiudi completamente l'app e riapri.", @"pt" : @"Isolamento inativo — você está na conta real. Não entre aqui; feche o app por completo e reabra." },
             @"panel.reseted"    : @{ @"fr" : FR(@"Réinitialisé"), @"en" : @"Reset", @"es" : @"Restablecido", @"de" : @"Zurückgesetzt", @"it" : @"Azzarato", @"pt" : @"Redefinido" },
@@ -78,27 +71,6 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IVL10nT
             @"create.save"      : @{ @"fr" : FR(@"Enregistrer"), @"en" : @"Save", @"es" : @"Guardar", @"de" : @"Speichern", @"it" : @"Salva", @"pt" : @"Salvar" },
             @"create.footer"    : @{ @"fr" : FR(@"Chaque conteneur est un téléphone isolé et répond ces informations à Instagram."), @"en" : @"Each container is an isolated phone and answers this information to Instagram.", @"es" : @"Cada contenedor es un teléfono aislado y responde esta información a Instagram.", @"de" : @"Jeder Container ist ein isoliertes Telefon und antwortet Instagram mit diesen Informationen.", @"it" : @"Ogni contenitore è un telefono isolato e risponde queste informazioni a Instagram.", @"pt" : @"Cada contêiner é um telefone isolado e responde essas informações ao Instagram." },
 
-            // ---- Auto-swipe ----
-            @"swipe.title"      : @{ @"fr" : FR(@"Auto-swipe"), @"en" : @"Auto-swipe", @"es" : @"Auto-swipe", @"de" : @"Auto-Swipe", @"it" : @"Auto-swipe", @"pt" : @"Auto-swipe" },
-            @"swipe.method"     : @{ @"fr" : FR(@"Méthode"), @"en" : @"Method", @"es" : @"Método", @"de" : @"Methode", @"it" : @"Metodo", @"pt" : @"Método" },
-            @"swipe.buttons"    : @{ @"fr" : FR(@"Boutons (X / ♥)"), @"en" : @"Buttons (X / ♥)", @"es" : @"Botones (X / ♥)", @"de" : @"Tasten (X / ♥)", @"it" : @"Pulsanti (X / ♥)", @"pt" : @"Botões (X / ♥)" },
-            @"swipe.gestures"   : @{ @"fr" : FR(@"Gestes du doigt"), @"en" : @"Finger gestures", @"es" : @"Gestos con el dedo", @"de" : @"Fingergesten", @"it" : @"Gesti del dito", @"pt" : @"Gestos com o dedo" },
-            @"swipe.count"      : @{ @"fr" : FR(@"Nombre de swipes"), @"en" : @"Number of swipes", @"es" : @"Número de swipes", @"de" : @"Anzahl Swipes", @"it" : @"Numero di swipe", @"pt" : @"Número de swipes" },
-            @"swipe.count.0"    : @{ @"fr" : FR(@"0 = illimité"), @"en" : @"0 = unlimited", @"es" : @"0 = ilimitado", @"de" : @"0 = unbegrenzt", @"it" : @"0 = illimitato", @"pt" : @"0 = ilimitado" },
-            @"swipe.like.pct"   : @{ @"fr" : FR(@"Like %"), @"en" : @"Like %", @"es" : @"% Me gusta", @"de" : @"Like %", @"it" : @"% Mi piace", @"pt" : @"% Curta" },
-            @"swipe.delays"     : @{ @"fr" : FR(@"Délais (s)"), @"en" : @"Delays (s)", @"es" : @"Intervalos (s)", @"de" : @"Verzögerung (s)", @"it" : @"Intervalli (s)", @"pt" : @"Intervalos (s)" },
-            @"swipe.start"      : @{ @"fr" : FR(@"Démarrer les swipes"), @"en" : @"Start swiping", @"es" : @"Empezar a deslizar", @"de" : @"Swipen starten", @"it" : @"Avvia swipe", @"pt" : @"Começar a deslizar" },
-            @"swipe.messages"   : @{ @"fr" : FR(@"Messages automatiques"), @"en" : @"Automatic messages", @"es" : @"Mensajes automáticos", @"de" : @"Automatische Nachrichten", @"it" : @"Messaggi automatici", @"pt" : @"Mensagens automáticas" },
-            @"swipe.ph"         : @{ @"fr" : FR(@"Une phrase par ligne"), @"en" : @"One phrase per line", @"es" : @"Una frase por línea", @"de" : @"Ein Satz pro Zeile", @"it" : @"Una frase per riga", @"pt" : @"Uma frase por linha" },
-            @"swipe.msgSection" : @{ @"fr" : FR(@"Phrases envoyées sur un match"), @"en" : @"Messages sent on a match", @"es" : @"Frases enviadas en un match", @"de" : @"Bei einem Match gesendete Sätze", @"it" : @"Frasi inviate su un match", @"pt" : @"Frases enviadas em um match" },
-            @"swipe.msgHint"    : @{ @"fr" : FR(@"Une phrase par ligne. À chaque match, le bot en envoie une au hasard. Laisse vide pour liker sans écrire."), @"en" : @"One phrase per line. On each match the bot sends one at random. Leave empty to like without writing.", @"es" : @"Una frase por línea. En cada match el bot envía una al azar. Déjalo vacío para dar like sin escribir.", @"de" : @"Ein Satz pro Zeile. Bei jedem Match sendet der Bot zufällig einen. Leer lassen, um ohne Text zu liken.", @"it" : @"Una frase per riga. A ogni match il bot ne invia una a caso. Lascia vuoto per mettere mi piace senza scrivere.", @"pt" : @"Uma frase por linha. A cada match o bot envia uma aleatória. Deixe vazio para curtir sem escrever." },
-            @"swipe.params"     : @{ @"fr" : FR(@"Paramètres de swipe"), @"en" : @"Swipe settings", @"es" : @"Parámetros de swipe", @"de" : @"Swipe-Einstellungen", @"it" : @"Parametri di swipe", @"pt" : @"Parâmetros de swipe" },
-            @"swipe.likeLabel"  : @{ @"fr" : FR(@"% de like (droite)"), @"en" : @"% like (right)", @"es" : @"% Me gusta (derecha)", @"de" : @"% Like (rechts)", @"it" : @"% Mi piace (destra)", @"pt" : @"% Curta (direita)" },
-            @"swipe.min"        : @{ @"fr" : FR(@"Délai min entre actions (s)"), @"en" : @"Min delay between actions (s)", @"es" : @"Intervalo mínimo entre acciones (s)", @"de" : @"Mindestverzögerung zwischen Aktionen (s)", @"it" : @"Intervallo minimo tra azioni (s)", @"pt" : @"Intervalo mínimo entre ações (s)" },
-            @"swipe.max"        : @{ @"fr" : FR(@"Délai max entre actions (s)"), @"en" : @"Max delay between actions (s)", @"es" : @"Intervalo máximo entre acciones (s)", @"de" : @"Maximalverzögerung zwischen Aktionen (s)", @"it" : @"Intervallo massimo tra azioni (s)", @"pt" : @"Intervalo máximo entre ações (s)" },
-            @"swipe.detectHint" : @{ @"fr" : FR(@"Détection best-effort : le bot agit sur l'UI de Instagram (like/dislike + popup « match »). Selon la version de Instagram, un réglage sur l'appareil peut être nécessaire."), @"en" : @"Best-effort detection: the bot acts on Instagram's UI (like/dislike + match popup). Depending on the Instagram version, a device setting may be required.", @"es" : @"Detección de mejor esfuerzo: el bot actúa sobre la UI de Instagram (like/dislike + popup de match). Según la versión de Instagram, puede ser necesario un ajuste.", @"de" : @"Best-effort-Erkennung: Der Bot agiert auf der Instagram-UI (Like/Dislike + Match-Popup). Je nach Instagram-Version kann eine Geräteeinstellung nötig sein.", @"it" : @"Rilevamento best-effort: il bot agisce sull'UI di Instagram (like/dislike + popup match). A seconda della versione di Instagram potrebbe servire un'impostazione.", @"pt" : @"Detecção best-effort: o bot age na UI do Instagram (like/dislike + popup de match). Conforme a versão do Instagram, pode ser necessária uma configuração." },
-            @"swipe.stop"       : @{ @"fr" : FR(@"Arrêter l'auto-swipe"), @"en" : @"Stop auto-swipe", @"es" : @"Detener el auto-swipe", @"de" : @"Auto-Swipe stoppen", @"it" : @"Ferma l'auto-swipe", @"pt" : @"Parar o auto-swipe" },
-
             // ---- GPS ----
             @"gps.title"        : @{ @"fr" : FR(@"Localisation GPS"), @"en" : @"GPS Location", @"es" : @"Ubicación GPS", @"de" : @"GPS-Standort", @"it" : @"Posizione GPS", @"pt" : @"Localização GPS" },
             @"gps.search"       : @{ @"fr" : FR(@"Rechercher une ville…"), @"en" : @"Search a city…", @"es" : @"Buscar una ciudad…", @"de" : @"Stadt suchen…", @"it" : @"Cerca una città…", @"pt" : @"Buscar uma cidade…" },
@@ -123,35 +95,33 @@ static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *IVL10nT
     return t;
 }
 
-// Langue cible courante, calculée à la 1re lecture puis mise en cache.
+// Langue cible courante, recalculée à CHAQUE lecture (pas de cache statique),
+// pour qu'une bascule FR/EN à l'exécution prenne effet immédiatement sans relance.
+// Ordre de résolution :
+//   1. Override explicitement choisi par l'utilisateur (bascule FR/EN du menu) —
+//      persistant, « IVLOverrideLanguage ».
+//   2. Sinon la langue du téléphone (préférences système).
+//      « si le téléphone est en français, tout reste en français ».
 NSString *IVLCurrentLanguage(void) {
-    static NSString *gLang;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSString *lang = nil;
-        NSString *ov = [[NSUserDefaults standardUserDefaults] stringForKey:@"IVLOverrideLanguage"];
-        if (ov.length) {
-            lang = [[ov componentsSeparatedByString:@"-"] firstObject];
-        } else {
-            // Langue de l'APP du conteneur ; sinon langue système du téléphone.
-            NSString *appLang = [IVLocaleSpoof deviceLanguage];
-            if (appLang.length) lang = [[appLang componentsSeparatedByString:@"-"] firstObject];
-            else {
-                NSString *sys = [NSLocale preferredLanguages].firstObject;
-                if (sys.length) lang = [[sys componentsSeparatedByString:@"-"] firstObject];
-            }
-        }
-        lang = [lang lowercaseString];
-        // Valide contre les langues réellement traduites dans la table.
-        static NSSet *known;
-        static dispatch_once_t ok;
-        dispatch_once(&ok, ^{
-            known = [NSSet setWithArray:@[@"fr", @"en", @"es", @"de", @"it", @"pt"]];
-        });
-        if (!(lang.length && [known containsObject:lang])) lang = nil; // → repli FR
-        gLang = lang;
+    NSString *lang = nil;
+    NSString *ov = [[NSUserDefaults standardUserDefaults] stringForKey:@"IVLOverrideLanguage"];
+    if (ov.length) {
+        lang = [[ov componentsSeparatedByString:@"-"] firstObject];
+    } else {
+        // Langue du téléphone (n'utilise PAS la langue spoofée d'un conteneur :
+        // la bascule du menu suit la langue réelle de l'appareil).
+        NSString *sys = [NSLocale preferredLanguages].firstObject;
+        if (sys.length) lang = [[sys componentsSeparatedByString:@"-"] firstObject];
+    }
+    lang = [lang lowercaseString];
+    // Valide contre les langues réellement traduites dans la table.
+    static NSSet *known;
+    static dispatch_once_t ok;
+    dispatch_once(&ok, ^{
+        known = [NSSet setWithArray:@[@"fr", @"en", @"es", @"de", @"it", @"pt"]];
     });
-    return gLang;
+    if (!(lang.length && [known containsObject:lang])) lang = nil; // → repli FR
+    return lang;
 }
 
 void IVLSetOverrideLanguage(NSString *_Nullable lang) {

@@ -84,21 +84,6 @@ extern NSString *const kIVActiveChanged;       // active container changed
 /// on persistence failure.
 - (BOOL)setCameraVideoPath:(nullable NSString *)path forContainer:(IVContainer *)c;
 
-/// Set the per-container auto-swipe configuration and persist. `enabled` marks the
-/// container as configured (lights the row icon); `messages` are the phrases the
-/// bot may auto-send on a match (nil/empty = send nothing, just like); `count` is
-/// the number of swipes (0 = unlimited); `minDelay`/`maxDelay` bound the random
-/// pause (seconds) between actions. Returns NO (and reverts every field in memory)
-/// on persistence failure, so memory never diverges from disk.
-- (BOOL)setAutoSwipeEnabled:(BOOL)enabled
-                   messages:(nullable NSArray<NSString *> *)messages
-                      count:(NSInteger)count
-                   minDelay:(double)minDelay
-                   maxDelay:(double)maxDelay
-                     method:(NSInteger)method
-                likePercent:(NSInteger)likePercent
-               forContainer:(IVContainer *)c;
-
 /// Global reset: delete every non-default container's data + clear the list to
 /// just the default. Returns NO + logs on failure.
 - (BOOL)resetAll;

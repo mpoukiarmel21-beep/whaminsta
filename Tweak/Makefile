@@ -34,9 +34,7 @@ whaminsta_FILES = \
 	Source/UI/IVPanelVC.m \
 	Source/UI/IVCreateVC.m \
 	Source/UI/IVMapPickerVC.m \
-	Source/UI/IVAutoSwipeVC.m \
 	Source/Util/IVAppRelaunch.m \
-	Source/Util/IVAutoSwipe.m \
 	Source/Util/IVDiagnostics.m \
 	Source/vendor/fishhook/fishhook.c
 

@@ -1,7 +1,6 @@
 #import "IVPanelVC.h"
 #import "IVCreateVC.h"
 #import "IVMapPickerVC.h"
-#import "IVListPickerVC.h"
 #import "IVTheme.h"
 #import "IVActionSheet.h"
 #import "IVL10n.h"
@@ -9,17 +8,15 @@
 #import "../Core/IVContainerStore.h"
 #import "../Spoof/IVDeviceSpoof.h"
 #import "../Spoof/IVDeviceIdentity.h"
-#import "../Spoof/IVLocaleSpoof.h"
 #import "../Core/IVPaths.h"
 #import "../Util/IVAppRelaunch.h"
-#import "../Util/IVAutoSwipe.h"
-#import "IVAutoSwipeVC.h"
 #import <PhotosUI/PhotosUI.h>
 
 @interface IVPanelVC () <UITableViewDataSource, UITableViewDelegate, PHPickerViewControllerDelegate>
 @property (nonatomic, strong) UITableView *table;
 @property (nonatomic, copy) NSArray<IVContainer *> *items;
 @property (nonatomic, strong, nullable) UIBarButtonItem *cameraBarButton;
+@property (nonatomic, strong, nullable) UISegmentedControl *langToggle;
 @end
 
 @implementation IVPanelVC
@@ -63,7 +60,11 @@
         [[UIBarButtonItem alloc] initWithImage:[self globalCameraGlyph]
                                          style:UIBarButtonItemStylePlain
                                         target:self action:@selector(manageGlobalCamera)];
-    self.navigationItem.rightBarButtonItems = @[ add, self.cameraBarButton ];
+    // Bascule de langue FR/EN en haut à droite du menu. Détecte la langue du
+    // téléphone par défaut ; un tap sur l'autre segment traduit TOUT le menu
+    // immédiatement (override persistant, réappliqué par IVL10n à chaque lecture).
+    UIBarButtonItem *langItem = [[UIBarButtonItem alloc] initWithCustomView:[self makeLangToggle]];
+    self.navigationItem.rightBarButtonItems = @[ add, self.cameraBarButton, langItem ];
 
     self.table = [[UITableView alloc] initWithFrame:self.view.bounds style:UITableViewStyleInsetGrouped];
     self.table.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -112,6 +113,40 @@
     [self.table reloadData];
 }
 
+#pragma mark - Bascule de langue FR/EN (haut à droite)
+
+// Segmented FR | EN. Reflète la langue cible courante : par défaut celle du
+// téléphone ; une fois l'un des deux segments tapé, l'override est persisté et
+// le menu re-rendu immédiatement (« si on clique sur EN, tout se traduit en
+// anglais automatiquement »).
+- (UISegmentedControl *)makeLangToggle {
+    UISegmentedControl *seg = [[UISegmentedControl alloc] initWithItems:@[
+        @"FR", @"EN"
+    ]];
+    seg.frame = CGRectMake(0, 0, 92, 30);
+    seg.selectedSegmentIndex = [[IVLCurrentLanguage() lowercaseString]
+                                    isEqualToString:@"en"] ? 1 : 0;
+    seg.selectedSegmentTintColor = IVTheme.accent;
+    if (@available(iOS 13.0, *)) {
+        seg.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    }
+    [seg setTitleTextAttributes:@{ NSForegroundColorAttributeName: IVTheme.onAccent }
+                       forState:UIControlStateSelected];
+    [seg setTitleTextAttributes:@{ NSForegroundColorAttributeName: IVTheme.secondaryText }
+                       forState:UIControlStateNormal];
+    [seg addTarget:self action:@selector(langChanged:) forControlEvents:UIControlEventValueChanged];
+    self.langToggle = seg;
+    return seg;
+}
+
+- (void)langChanged:(UISegmentedControl *)seg {
+    // Persiste l'override (réappliqué par IVL10n à chaque lecture du menu) puis
+    // re-rend toutes les chaînes localisées (table + footer + bannière). La marque
+    // « WhamInsta » et les icônes de la barre ne changent pas de langue.
+    IVLSetOverrideLanguage((seg.selectedSegmentIndex == 1) ? @"en" : @"fr");
+    [self reload];
+}
+
 - (void)close { [self dismissViewControllerAnimated:YES completion:nil]; }
 
 #pragma mark - Table
@@ -155,10 +190,10 @@
 
     cell.tintColor = IVTheme.accent;
     // Affordances de fin de ligne : des icônes explicites POSÉES sur chaque
-    // conteneur (appareil · localisation · caméra de vérif · auto-swipe), pour
-    // que chaque réglage soit à un tap sans ouvrir de menu. Le conteneur par
-    // défaut (compte réel) ne porte que l'épingle GPS. Le tap sur la ligne ouvre
-    // la feuille d'actions (activer / langue & région / renommer / supprimer).
+    // conteneur (localisation · caméra de vérif), pour que chaque réglage soit à
+    // un tap sans ouvrir de menu. Le conteneur par défaut (compte réel) ne porte
+    // que l'épingle GPS. Le tap sur la ligne ouvre la feuille d'actions
+    // (activer / renommer / supprimer).
     cell.accessoryType = UITableViewCellAccessoryNone;
     cell.accessoryView = [self trailingControlsForRow:ip.row];
     return cell;
@@ -167,14 +202,14 @@
 // The cell's accessoryView: explicit quick-action icons ON the row itself, so the
 // per-container settings are one tap away without opening a menu. The DEFAULT
 // (real) container only carries the fake-GPS pin; a real container has no spoofed
-// device / auto-swipe to configure. Each NON-default row shows the localisation pin
-// FIRST and enlarged as the row's primary affordance ("la tourelle, tu le mets sur
-// le conteneur pour que ça soit visible"), then auto-swipe. The "Langue & région"
-// gear and the verification camera were moved off the row (build-13+): language /
-// region is now set directly in the create screen and stays reachable via the row's
-// action sheet, and the camera is GLOBAL (one shared video for every container) on
-// the nav bar. Each button carries the row index in its tag so the handler resolves
-// the container at tap time (self.items stays in sync across reloads).
+// device to configure. Each NON-default row shows the localisation pin FIRST and
+// enlarged as the row's primary affordance ("la tourelle, tu le mets sur le
+// conteneur pour que ça soit visible"). The auto-swipe (icône main) et le « Langue
+// & région » (planète) ont été retirés, et la caméra de vérification est GLOBALE
+// (une seule vidéo partagée par tous les conteneurs) sur la barre de navigation ;
+// la langue / région se règle dans l'écran de création d'un conteneur. Chaque
+// bouton porte l'index de ligne dans son tag pour résoudre le conteneur au tap
+// (self.items reste synchronisé entre les reloads).
 - (nullable UIView *)trailingControlsForRow:(NSInteger)row {
     if (row < 0 || row >= (NSInteger)self.items.count) return nil;
     IVContainer *c = self.items[row];
@@ -193,27 +228,12 @@
         return wrap;
     }
 
-    // Non-default: localisation (leading & prominent) · auto-swipe. L'engrenage
-    // « Langue & région » (gearshape) a été retiré de la ligne en build-13+ car
-    // langue/région se règle désormais directement dans l'écran de création ;
-    // il reste accessible via « Langue & région » dans la feuille d'actions de
-    // la ligne. Le pin GPS devient l'affordance primaire, puis l'auto-swipe.
-    BOOL swipeOn = c.autoSwipeEnabled;
-    UIButton *swipe = [self glyphButton:(swipeOn ? @"hand.draw.fill" : @"hand.draw")
-                                    row:row action:@selector(autoSwipeFromControl:)
-                                   tint:(swipeOn ? IVTheme.accent : IVTheme.secondaryText)];
-
-    // Localisation leads and is wider than the rest as the row's headline
-    // control; the auto-swipe glyph trails it.
-    const CGFloat leadW = 46.0, bw = 34.0, bh = 40.0;
-    NSArray<UIButton *> *trailing = @[ swipe ];
-    UIView *wrap = [[UIView alloc] initWithFrame:CGRectMake(0, 0, leadW + bw * trailing.count, bh)];
+    // Non-default: localisation. L'auto-swipe (icône main) a été supprimé (task 2) :
+    // la ligne ne porte plus que le pin GPS comme affordance principale.
+    const CGFloat leadW = 46.0, bh = 40.0;
+    UIView *wrap = [[UIView alloc] initWithFrame:CGRectMake(0, 0, leadW, bh)];
     pin.frame = CGRectMake(0, 0, leadW, bh);
     [wrap addSubview:pin];
-    [trailing enumerateObjectsUsingBlock:^(UIButton *b, NSUInteger i, BOOL *stop) {
-        b.frame = CGRectMake(leadW + bw * i, 0, bw, bh);
-        [wrap addSubview:b];
-    }];
     return wrap;
 }
 
@@ -259,15 +279,9 @@
                                            handler:^{ [ws activate:c]; }]];
     }
     if (!c.isDefault) {
-        // Réglages (langue & région) et auto-swipe : l'engrenage a été retiré de la
-        // ligne en build-13+ (langue/région se règle dans l'écran de création) ; la
-        // langue & région reste accessible ici, en plus de l'appareil (infos,
-        // lecture seule) et de renommer / supprimer. Le pin GPS et l'auto-swipe
-        // gardent leurs icônes directes sur la ligne / cette feuille.
-        [sheet addAction:[IVAction actionWithTitle:IVLL(@"panel.langs", @"Langue & région")
-                                            symbol:@"globe"
-                                             style:IVActionStyleDefault
-                                           handler:^{ [ws showSettingsFor:c]; }]];
+        // La feuille garde : Appareil (infos) · Renommer · Supprimer. Le « Langue &
+        // région » (icône planète globe) a été retiré (task 3) car la langue / région
+        // se règle déjà directement dans l'écran de création d'un conteneur.
         [sheet addAction:[IVAction actionWithTitle:IVLL(@"panel.device", @"Appareil (infos)")
                                             symbol:@"iphone"
                                              style:IVActionStyleDefault
@@ -315,23 +329,7 @@
     [self.navigationController pushViewController:map animated:YES];
 }
 
-#pragma mark - Row icon handlers (device · auto-swipe)
-
-// "Auto-swipe" : ouvre le panneau de configuration du bot pour ce conteneur.
-- (void)autoSwipeFromControl:(UIButton *)sender {
-    IVContainer *c = [self containerForControl:sender];
-    if (c) [self showAutoSwipeFor:c];
-}
-
-// Panneau de configuration de l'auto-swipe, poussé sur la pile de navigation (comme
-// le sélecteur de langue / la carte). Le panneau gère lui-même « Enregistrer » /
-// « Démarrer » : démarrer ferme tout le panneau pour laisser l'UI de Instagram au premier
-// plan, seule surface que le bot pilote.
-- (void)showAutoSwipeFor:(IVContainer *)c {
-    if (!c) return;
-    IVAutoSwipeVC *vc = [[IVAutoSwipeVC alloc] initWithContainer:c];
-    [self.navigationController pushViewController:vc animated:YES];
-}
+#pragma mark - Row icon handlers
 
 - (void)rename:(IVContainer *)c {
     UIAlertController *a = [UIAlertController alertControllerWithTitle:IVLL(@"panel.rename", @"Renommer") message:nil
@@ -373,7 +371,7 @@
     [self presentViewController:a animated:YES completion:nil];
 }
 
-#pragma mark - Device info (read-only) + settings (language / region)
+#pragma mark - Device info (read-only)
 
 - (void)showDeviceInfoFor:(IVContainer *)c {
     if (!c) return;
@@ -401,68 +399,6 @@
     a.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     [a addAction:[UIAlertAction actionWithTitle:IVLL(@"panel.close", @"Fermer") style:UIAlertActionStyleDefault handler:nil]];
     [self presentViewController:a animated:YES completion:nil];
-}
-
-- (void)showSettingsFor:(IVContainer *)c {
-    if (!c) return;
-    __weak typeof(self) ws = self;
-
-    NSString *langNow = c.appLanguage.length
-        ? [IVLocaleSpoof displayNameForLanguage:c.appLanguage] : @"Automatique";
-    NSString *regionNow = c.regionCountry.length
-        ? [IVLocaleSpoof displayNameForRegion:c.regionCountry] : @"Automatique";
-
-    IVActionSheet *sheet = [[IVActionSheet alloc] initWithTitle:[NSString stringWithFormat:IVLL(@"panel.settingsFor", @"Réglages — %@"), c.name]
-                                                        message:IVLL(@"panel.settings.note", @"Prend effet au prochain démarrage de l'app.")];
-    [sheet addAction:[IVAction actionWithTitle:[NSString stringWithFormat:IVLL(@"panel.langFmt", @"Langue : %@"), langNow]
-                                        symbol:@"globe"
-                                         style:IVActionStyleDefault
-                                       handler:^{ [ws pickLanguageFor:c]; }]];
-    [sheet addAction:[IVAction actionWithTitle:[NSString stringWithFormat:IVLL(@"panel.regionFmt", @"Région : %@"), regionNow]
-                                        symbol:@"map"
-                                         style:IVActionStyleDefault
-                                       handler:^{ [ws pickRegionFor:c]; }]];
-    [sheet presentFrom:self];
-}
-
-- (void)pickLanguageFor:(IVContainer *)c {
-    NSMutableArray<IVListOption *> *opts = [NSMutableArray new];
-    [opts addObject:[IVListOption value:@"" title:IVLL(@"panel.auto", @"Automatique (système)") subtitle:nil]];
-    for (NSString *code in [IVLocaleSpoof supportedLanguageCodes]) {
-        [opts addObject:[IVListOption value:code title:[IVLocaleSpoof displayNameForLanguage:code] subtitle:code]];
-    }
-    __weak typeof(self) ws = self;
-    IVListPickerVC *p = [[IVListPickerVC alloc] initWithTitle:IVLL(@"panel.locale", @"Langue de l'application")
-                                                      options:opts
-                                                selectedValue:c.appLanguage
-                                                       onPick:^(IVListOption *o) {
-        NSString *lang = o.value.length ? o.value : nil;
-        if (![[IVContainerStore shared] setAppLanguage:lang region:c.regionCountry forContainer:c]) {
-            [ws warn:@"Échec" msg:@"Impossible d'enregistrer la langue (écriture disque échouée)."];
-        }
-        [ws reload];
-    }];
-    [self.navigationController pushViewController:p animated:YES];
-}
-
-- (void)pickRegionFor:(IVContainer *)c {
-    NSMutableArray<IVListOption *> *opts = [NSMutableArray new];
-    [opts addObject:[IVListOption value:@"" title:IVLL(@"panel.auto", @"Automatique (système)") subtitle:nil]];
-    for (NSString *code in [IVLocaleSpoof supportedRegionCodes]) {
-        [opts addObject:[IVListOption value:code title:[IVLocaleSpoof displayNameForRegion:code] subtitle:code]];
-    }
-    __weak typeof(self) ws = self;
-    IVListPickerVC *p = [[IVListPickerVC alloc] initWithTitle:IVLL(@"panel.region", @"Pays / région")
-                                                      options:opts
-                                                selectedValue:c.regionCountry
-                                                       onPick:^(IVListOption *o) {
-        NSString *region = o.value.length ? o.value : nil;
-        if (![[IVContainerStore shared] setAppLanguage:c.appLanguage region:region forContainer:c]) {
-            [ws warn:@"Échec" msg:@"Impossible d'enregistrer la région (écriture disque échouée)."];
-        }
-        [ws reload];
-    }];
-    [self.navigationController pushViewController:p animated:YES];
 }
 
 #pragma mark - Caméra virtuelle globale (vidéo de vérification partagée)
