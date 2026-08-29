@@ -124,14 +124,14 @@
     UISegmentedControl *seg = [[UISegmentedControl alloc] initWithItems:@[
         @"FR", @"EN"
     ]];
-    seg.frame = CGRectMake(0, 0, 74, 27);
+    seg.frame = CGRectMake(0, 0, 60, 24);
     seg.selectedSegmentIndex = [[IVLCurrentLanguage() lowercaseString]
                                     isEqualToString:@"en"] ? 1 : 0;
     seg.selectedSegmentTintColor = IVTheme.accent;
     if (@available(iOS 13.0, *)) {
         seg.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     }
-    UIFont *segFont = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
+    UIFont *segFont = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
     [seg setTitleTextAttributes:@{ NSForegroundColorAttributeName: IVTheme.onAccent,
                                    NSFontAttributeName: segFont }
                        forState:UIControlStateSelected];
