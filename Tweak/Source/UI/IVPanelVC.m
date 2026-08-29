@@ -47,7 +47,7 @@
     bar.scrollEdgeAppearance = ap;
     bar.compactAppearance = ap;
 
-    self.navigationItem.leftBarButtonItem =
+    UIBarButtonItem *closeItem =
         [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
                                                       target:self action:@selector(close)];
     UIBarButtonItem *add =
@@ -60,11 +60,12 @@
         [[UIBarButtonItem alloc] initWithImage:[self globalCameraGlyph]
                                          style:UIBarButtonItemStylePlain
                                         target:self action:@selector(manageGlobalCamera)];
-    // Bascule de langue FR/EN en haut à droite du menu. Détecte la langue du
-    // téléphone par défaut ; un tap sur l'autre segment traduit TOUT le menu
-    // immédiatement (override persistant, réappliqué par IVL10n à chaque lecture).
+    self.navigationItem.rightBarButtonItems = @[ add, self.cameraBarButton ];
+    // Bascule de langue FR/EN déplacée à gauche, juste après le bouton fermer —
+    // pas trop collée à la croix, pour ne pas écraser la marque « WhamInsta »
+    // centrée (le titleView se recentre automatiquement entre les deux barres).
     UIBarButtonItem *langItem = [[UIBarButtonItem alloc] initWithCustomView:[self makeLangToggle]];
-    self.navigationItem.rightBarButtonItems = @[ add, self.cameraBarButton, langItem ];
+    self.navigationItem.leftBarButtonItems = @[ closeItem, langItem ];
 
     self.table = [[UITableView alloc] initWithFrame:self.view.bounds style:UITableViewStyleInsetGrouped];
     self.table.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -113,7 +114,7 @@
     [self.table reloadData];
 }
 
-#pragma mark - Bascule de langue FR/EN (haut à droite)
+#pragma mark - Bascule de langue FR/EN (barre de navigation, à gauche)
 
 // Segmented FR | EN. Reflète la langue cible courante : par défaut celle du
 // téléphone ; une fois l'un des deux segments tapé, l'override est persisté et
@@ -123,16 +124,19 @@
     UISegmentedControl *seg = [[UISegmentedControl alloc] initWithItems:@[
         @"FR", @"EN"
     ]];
-    seg.frame = CGRectMake(0, 0, 92, 30);
+    seg.frame = CGRectMake(0, 0, 74, 27);
     seg.selectedSegmentIndex = [[IVLCurrentLanguage() lowercaseString]
                                     isEqualToString:@"en"] ? 1 : 0;
     seg.selectedSegmentTintColor = IVTheme.accent;
     if (@available(iOS 13.0, *)) {
         seg.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     }
-    [seg setTitleTextAttributes:@{ NSForegroundColorAttributeName: IVTheme.onAccent }
+    UIFont *segFont = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
+    [seg setTitleTextAttributes:@{ NSForegroundColorAttributeName: IVTheme.onAccent,
+                                   NSFontAttributeName: segFont }
                        forState:UIControlStateSelected];
-    [seg setTitleTextAttributes:@{ NSForegroundColorAttributeName: IVTheme.secondaryText }
+    [seg setTitleTextAttributes:@{ NSForegroundColorAttributeName: IVTheme.secondaryText,
+                                   NSFontAttributeName: segFont }
                        forState:UIControlStateNormal];
     [seg addTarget:self action:@selector(langChanged:) forControlEvents:UIControlEventValueChanged];
     self.langToggle = seg;
