@@ -49,6 +49,15 @@
     lp.delegate = self;
     [self.map addGestureRecognizer:lp];
 
+    // Taper n'importe où hors de la zone de texte replie le clavier de recherche.
+    // Sans ça, après avoir cherché/zoommé une ville, le clavier reste bloqué et
+    // recouvre le bouton « Activer » en bas, obligeant à sortir puis revenir.
+    // cancelsTouchesInView = NO : on n'empêche pas le geste long / la sélection.
+    UITapGestureRecognizer *dismissTap = [[UITapGestureRecognizer alloc]
+                                          initWithTarget:self action:@selector(dismissKeyboard)];
+    dismissTap.cancelsTouchesInView = NO;
+    [self.view addGestureRecognizer:dismissTap];
+
     self.commit = [UIButton buttonWithType:UIButtonTypeSystem];
     self.commit.translatesAutoresizingMaskIntoConstraints = NO;
     [self.commit setTitle:IVLL(@"gps.activate", @"Activer cette position") forState:UIControlStateNormal];
@@ -167,6 +176,14 @@
 }
 
 #pragma mark - Search
+
+- (void)dismissKeyboard {
+    [self.view endEditing:YES];   // replie le clavier de recherche
+}
+
+- (void)searchBarCancelButtonClicked:(UISearchBar *)searchBar {
+    [searchBar resignFirstResponder];
+}
 
 - (void)searchBarSearchButtonClicked:(UISearchBar *)searchBar {
     [searchBar resignFirstResponder];
