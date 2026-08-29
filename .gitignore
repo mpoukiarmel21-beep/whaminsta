@@ -1,0 +1,18 @@
+# Theos build output
+Tweak/.theos/
+.theos/
+obj/
+*.dylib
+
+# Never commit IPAs into the repo — they are copyrighted and huge.
+# The base IPA is provided at build time (release asset / URL); the built
+# IPA is published as a release asset by CI, not tracked in git.
+*.ipa
+
+# Baseline / staged binaries
+*.bin
+
+# macOS / editor junk
+.DS_Store
+*.swp
+*~

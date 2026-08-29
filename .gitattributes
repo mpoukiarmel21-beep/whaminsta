@@ -1,0 +1,12 @@
+# Force LF for build-critical files so a Windows working copy never commits
+# CRLF that would break the macOS/Linux CI (e.g. a `#!/bin/bash\r` shebang or
+# a CRLF Makefile). The repo stores LF; CI checks out LF.
+*.sh    text eol=lf
+*.py    text eol=lf
+*.m     text eol=lf
+*.h     text eol=lf
+*.c     text eol=lf
+Makefile text eol=lf
+*.yml   text eol=lf
+*.plist text eol=lf
+*.entitlements text eol=lf
