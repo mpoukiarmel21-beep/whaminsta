@@ -147,9 +147,23 @@ static NSString *IVResolveLproj(NSString *lang, NSString *region) {
 // with the SPOOFED values — the C-level defaults path many SDKs use to fingerprint
 // the device's language list, which the NSLocale swizzles alone don't cover.
 static void IVSwizzleUDReader(SEL sel) {
+    // Idempotence guard: never install the same reader twice in one process.
+    // method_getImplementation on an already-swizzled method would hand back OUR
+    // OWN block as "orig", and the replacement below would then call itself
+    // endlessly (objectForKey: -> thunk -> objectForKey: -> ...) — a stack-overflow
+    // crash. installForContainer: runs once from the constructor today, but an
+    // accidental second install or a re-layout during create must stay safe.
+    static NSMutableSet<NSString *> *sInstalledReaders = nil;
+    static dispatch_once_t sReadersOnce;
+    dispatch_once(&sReadersOnce, ^{ sInstalledReaders = [NSMutableSet set]; });
+    NSString *name = NSStringFromSelector(sel);
+    if ([sInstalledReaders containsObject:name]) return;
+    [sInstalledReaders addObject:name];
+
     Method m = class_getInstanceMethod([NSUserDefaults class], sel);
     if (!m) return;
     IMP orig = method_getImplementation(m);
+    // Defensive: if the current IMP is already one of our thunks, do not re-wrap it.
     IMP repl = imp_implementationWithBlock(^id(id _self, NSString *key) {
         if ([key isKindOfClass:[NSString class]]) {
             if (gPreferredLanguages.count && [key isEqualToString:@"AppleLanguages"]) return gPreferredLanguages;
