@@ -74,16 +74,6 @@ static int (*orig_uname)(struct utsname *) = NULL;
 static CFPropertyListRef (*orig_MGCopyAnswer)(CFStringRef) = NULL;
 static void *(*orig_dlsym)(void *, const char *) = NULL;
 
-// GENUINE libc entry points, resolved via dlsym BEFORE we rebind (so the lookup
-// uses the real dlsym). fishhook only writes orig_sysctlbyname/orig_sysctl/
-// orig_uname when the corresponding symbol was found in an image's import table;
-// if rebind_symbols fails to resolve one, its orig_* stays NULL and a forward
-// would call a NULL function pointer (EXC_BAD_ACCESS at launch). These are the
-// crash-safe fallback the forwards use when their orig_* was never populated.
-static int (*gRealSysctlByName)(const char *, void *, size_t *, void *, size_t) = NULL;
-static int (*gRealSysctl)(int *, u_int, void *, size_t *, void *, size_t) = NULL;
-static int (*gRealUname)(struct utsname *) = NULL;
-
 // kern.boottime spoof (P4) — the boot timestamp is a device-GLOBAL constant: every
 // app and every container on one physical handset reads the identical value, so an
 // unspoofed boottime is a direct "many accounts, one phone" correlation key that
@@ -155,22 +145,11 @@ static int iv_sysctlbyname(const char *name, void *oldp, size_t *oldlenp, void *
         *oldlenp = need;
         return 0;
     }
-    if (orig_sysctlbyname) return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
-    if (gRealSysctlByName) return gRealSysctlByName(name, oldp, oldlenp, newp, newlen);
-    errno = ENOSYS;
-    return -1;
+    return orig_sysctlbyname(name, oldp, oldlenp, newp, newlen);
 }
 
 static int iv_uname(struct utsname *u) {
-    int r;
-    if (orig_uname) {
-        r = orig_uname(u);
-    } else if (gRealUname) {
-        r = gRealUname(u);
-    } else {
-        errno = ENOSYS;
-        return -1;
-    }
+    int r = orig_uname(u);
     if (r == 0 && gSpoofedModelC && u) {
         strlcpy(u->machine, gSpoofedModelC, sizeof(u->machine));
     }
@@ -205,10 +184,7 @@ static int iv_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void
         *oldlenp = need;
         return 0;
     }
-    if (orig_sysctl) return orig_sysctl(name, namelen, oldp, oldlenp, newp, newlen);
-    if (gRealSysctl) return gRealSysctl(name, namelen, oldp, oldlenp, newp, newlen);
-    errno = ENOSYS;
-    return -1;
+    return orig_sysctl(name, namelen, oldp, oldlenp, newp, newlen);
 }
 
 #pragma mark - MobileGestalt hook (P3)
@@ -413,14 +389,6 @@ static void IVInstallBoottimeSpoof(NSString *cid) {
         if (mg) orig_MGCopyAnswer = (CFPropertyListRef (*)(CFStringRef))dlsym(mg, "MGCopyAnswer");
     }
 
-    // Resolve the GENUINE libc entry points BEFORE the rebind below (dlsym is not
-    // yet intercepted here, so these return the real functions). If rebind_symbols
-    // fails to bind one of these symbols, its orig_* stays NULL; the forwards fall
-    // back to these so a launch-time lookup can never jump to a NULL pointer.
-    gRealSysctlByName = (int (*)(const char *, void *, size_t *, void *, size_t))dlsym(RTLD_DEFAULT, "sysctlbyname");
-    gRealSysctl       = (int (*)(int *, u_int, void *, size_t *, void *, size_t))dlsym(RTLD_DEFAULT, "sysctl");
-    gRealUname        = (int (*)(struct utsname *))dlsym(RTLD_DEFAULT, "uname");
-
     // hw.machine (+ kern.os* when set) via sysctlbyname + sysctl (raw MIB) + uname,
     // plus MobileGestalt: rebind the bound MGCopyAnswer import AND intercept dlsym
     // to cover the (common) runtime-resolved path. Only wired when the real
@@ -436,9 +404,6 @@ static void IVInstallBoottimeSpoof(NSString *cid) {
     // Drop the MobileGestalt pair if we could not resolve the original.
     unsigned count = orig_MGCopyAnswer ? (sizeof(r) / sizeof(r[0])) : 3;
     int rc = rebind_symbols(r, count);
-    if (rc != 0) {
-        IVErr(@"DeviceSpoof: rebind_symbols rc=%d (missing symbol?) — sysctl/uname forwards fall back to real libc, device spoof degraded", rc);
-    }
     IVLog(@"DeviceSpoof: model=%@ ios=%@ (build %@) idfv=%@ udid=%@ mg=%d boot=%d(-%.1fd) rc=%d",
           gSpoofedModel, gSpoofedIOSVersion ?: @"real", gSpoofedBuild ?: @"-",
           gVendorUUID, gGestaltSpoof[@"UniqueDeviceID"], (orig_MGCopyAnswer != NULL),
