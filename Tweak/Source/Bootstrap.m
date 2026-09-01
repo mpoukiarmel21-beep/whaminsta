@@ -124,6 +124,19 @@ static void IVInstallBackgroundReprotect(NSString *containerRoot) {
 static int IVCrashLogFD = -1;
 static const int IVCrashSignals[] = { SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGSYS };
 
+// Prior uncaught-exception handler, chained after ours. A plain C function
+// pointer (NSUncaughtExceptionHandler is a function pointer, NOT a block — a
+// block literal fails to compile on modern SDKs).
+static NSUncaughtExceptionHandler *IVPriorExceptionHandler = NULL;
+static void IVExceptionCrashHandler(NSException *ex) {
+    @autoreleasepool {
+        [[IVDiagnostics shared] error:[NSString stringWithFormat:
+            @"UNCAUGHT EXCEPTION %@: %@\n%@",
+            ex.name, ex.reason, [[ex callStackSymbols] componentsJoinedByString:@"\n"]]];
+    }
+    if (IVPriorExceptionHandler) IVPriorExceptionHandler(ex);
+}
+
 static void IVSignalCrashHandler(int signo, siginfo_t *info, void *context) {
     // Strictly async-signal-safe: no malloc, no ObjC, no dprintf/vsnprintf. Build
     // static buffers and write() them, then backtrace_symbols_fd (signal-safe).
@@ -155,14 +168,11 @@ static void IVInstallCrashLogger(void) {
     NSString *crashPath = [dir stringByAppendingPathComponent:@"crash.log"];
     IVCrashLogFD = open(crashPath.UTF8String, O_WRONLY | O_CREAT | O_APPEND, 0644);
 
-    // Layer 1: ObjC exceptions (safe to write via the file logger).
-    NSUncaughtExceptionHandler *prior = NSGetUncaughtExceptionHandler();
-    NSSetUncaughtExceptionHandler(^(NSException *ex) {
-        [[IVDiagnostics shared] error:[NSString stringWithFormat:
-            @"UNCAUGHT EXCEPTION %@: %@\n%@",
-            ex.name, ex.reason, [[ex callStackSymbols] componentsJoinedByString:@"\n"]]];
-        if (prior) prior(ex);
-    });
+    // Layer 1: ObjC exceptions (safe to write via the file logger). The handler
+    // MUST be a C function (NSUncaughtExceptionHandler is a function pointer, not
+    // a block) — a block literal is incompatible on the modern SDK.
+    IVPriorExceptionHandler = NSGetUncaughtExceptionHandler();
+    NSSetUncaughtExceptionHandler(IVExceptionCrashHandler);
 
     // Layer 2: fatal signals (async-signal-safe path only).
     struct sigaction sa;
