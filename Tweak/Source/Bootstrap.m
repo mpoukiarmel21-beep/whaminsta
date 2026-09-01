@@ -1,4 +1,10 @@
 #import <UIKit/UIKit.h>
+#import <signal.h>
+#import <unistd.h>
+#import <execinfo.h>
+#import <fcntl.h>
+#import <time.h>
+#import <string.h>
 #import "Core/IVPaths.h"
 #import "Core/IVContainer.h"
 #import "Core/IVContainerStore.h"
@@ -99,6 +105,88 @@ static void IVInstallBackgroundReprotect(NSString *containerRoot) {
     }];
 }
 
+// Crash capture — the launch/create crashes were invisible because no handler
+// dumped a stack. Two layers, both writing under the DIAGNOSTICS log dir (real
+// home, readable via the Files app):
+//
+//  * NSSetUncaughtExceptionHandler — ObjC exceptions. Called with the app still
+//    in a usable state, so it can safely write exception name/reason + the full
+//    [NSThread callStackSymbols] via the file logger, then chain the prior handler.
+//  * Async-signal-safe signal handler — hard crashes (SEGV/ABRT/BUS/ILL/FPE) that
+//    can strike inside a swizzled/hooked path. A tiny async-signal-safe path is
+//    used (backtrace + backtrace_symbols_fd to a pre-opened fd — no malloc, no
+//    ObjC), then the default disposition is restored and the signal re-raised so
+//    the OS still terminates us with the real signal.
+//
+// The install must run AFTER captureRealHome so the log directory resolves to the
+// REAL (un-redirected) home — never a per-container sandbox.
+
+static int IVCrashLogFD = -1;
+static const int IVCrashSignals[] = { SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGSYS };
+
+// Prior uncaught-exception handler, chained after ours. A plain C function
+// pointer (NSUncaughtExceptionHandler is a function pointer, NOT a block — a
+// block literal fails to compile on modern SDKs).
+static NSUncaughtExceptionHandler *IVPriorExceptionHandler = NULL;
+static void IVExceptionCrashHandler(NSException *ex) {
+    @autoreleasepool {
+        [[IVDiagnostics shared] error:[NSString stringWithFormat:
+            @"UNCAUGHT EXCEPTION %@: %@\n%@",
+            ex.name, ex.reason, [[ex callStackSymbols] componentsJoinedByString:@"\n"]]];
+    }
+    if (IVPriorExceptionHandler) IVPriorExceptionHandler(ex);
+}
+
+static void IVSignalCrashHandler(int signo, siginfo_t *info, void *context) {
+    // Strictly async-signal-safe: no malloc, no ObjC, no dprintf/vsnprintf. Build
+    // static buffers and write() them, then backtrace_symbols_fd (signal-safe).
+    void *frames[128];
+    int n = backtrace(frames, (int)(sizeof(frames) / sizeof(frames[0])));
+    if (IVCrashLogFD >= 0) {
+        char header[96];
+        int hlen = snprintf(header, sizeof(header),
+                            "\n======== CRASH signal=%d si_code=%d time=%lld ========\n",
+                            signo, info ? info->si_code : -1, (long long)time(NULL));
+        if (hlen > 0) { if (hlen >= (int)sizeof(header)) hlen = (int)sizeof(header) - 1; write(IVCrashLogFD, header, (size_t)hlen); }
+        backtrace_symbols_fd(frames, n, IVCrashLogFD);
+        static const char footer[] = "======== END CRASH ========\n";
+        write(IVCrashLogFD, footer, sizeof(footer) - 1);
+        fsync(IVCrashLogFD);
+    }
+    // Restore default and re-raise so the OS still reports the real crash.
+    signal(signo, SIG_DFL);
+    raise(signo);
+}
+
+static void IVInstallCrashLogger(void) {
+    // Open the crash log fd ONCE (before any handler runs) so the signal path has a
+    // valid fd and never needs to allocate.
+    NSString *dir = [[[IVPaths realHome] stringByAppendingPathComponent:@"Documents"]
+                        stringByAppendingPathComponent:@"whaminsta/logs"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:dir
+                              withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSString *crashPath = [dir stringByAppendingPathComponent:@"crash.log"];
+    IVCrashLogFD = open(crashPath.UTF8String, O_WRONLY | O_CREAT | O_APPEND, 0644);
+
+    // Layer 1: ObjC exceptions (safe to write via the file logger). The handler
+    // MUST be a C function (NSUncaughtExceptionHandler is a function pointer, not
+    // a block) — a block literal is incompatible on the modern SDK.
+    IVPriorExceptionHandler = NSGetUncaughtExceptionHandler();
+    NSSetUncaughtExceptionHandler(IVExceptionCrashHandler);
+
+    // Layer 2: fatal signals (async-signal-safe path only).
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = IVSignalCrashHandler;
+    sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
+    sigemptyset(&sa.sa_mask);
+    for (size_t i = 0; i < sizeof(IVCrashSignals) / sizeof(IVCrashSignals[0]); i++) {
+        sigaction(IVCrashSignals[i], &sa, NULL);
+    }
+
+    IVLog(@"Crash logger installed (exceptions + signals) -> %@", crashPath);
+}
+
 __attribute__((constructor))
 static void IVBootstrap(void) {
     @autoreleasepool {
@@ -109,6 +197,10 @@ static void IVBootstrap(void) {
         //     sysctlbyname, otherwise the read would return the spoofed model and the
         //     model picker could offer cross-chip devices (an iPhone 11 as iPhone 17).
         [IVDeviceIdentity captureRealChip];
+
+        // 1c. Crash capture — installed right after the real home is known so any
+        //     crash in the isolation/spoof setup below (steps 2-8) dumps a stack.
+        IVInstallCrashLogger();
 
         // 2. Load the container store from the shared (real-home) control dir.
         IVContainerStore *store = [IVContainerStore shared];
