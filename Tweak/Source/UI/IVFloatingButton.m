@@ -1,6 +1,7 @@
 #import "IVFloatingButton.h"
 #import "IVPanelVC.h"
 #import "IVTheme.h"
+#import "../Core/IVPaths.h"
 
 #pragma mark - Overlay window (hosts the button AND the panel)
 
@@ -349,6 +350,60 @@ static const CGFloat kIVEdgeMargin = 18.0;   // breathing room from the screen e
 // this is safe even if the button is already visible.
 - (void)restoreButtonAfterExternalDismiss {
     [self teardownPresentation];
+}
+
+#pragma mark - Crash report surfacing
+
+// Shows any crash stack logged since the last time one was surfaced. Reads
+// <realHome>/Documents/whaminsta/logs/crash.log and mirrors the already-shown
+// byte offset to crash.seen in the same dir, so each crash pops the alert exactly
+// once and stays available for the user to inspect/copy without the Files app.
+- (void)presentPendingCrashReport {
+    if (!self.window) return;
+    UIViewController *host = self.window.rootViewController;
+    if (!host || host.presentedViewController) return;
+
+    NSString *dir = [[[IVPaths realHome] stringByAppendingPathComponent:@"Documents"]
+                        stringByAppendingPathComponent:@"whaminsta/logs"];
+    NSString *crashPath = [dir stringByAppendingPathComponent:@"crash.log"];
+    NSString *seenPath  = [dir stringByAppendingPathComponent:@"crash.seen"];
+    if (![[NSFileManager defaultManager] fileExistsAtPath:crashPath]) return;
+
+    NSData *data = [NSData dataWithContentsOfFile:crashPath];
+    if (!data.length) return;
+
+    unsigned long long seen = 0;
+    NSString *seenS = [NSString stringWithContentsOfFile:seenPath encoding:NSUTF8StringEncoding error:NULL];
+    if (seenS.length) seen = [seenS longLongValue];
+
+    unsigned long long total = (unsigned long long)data.length;
+    if (total <= seen) return;                       // nothing new since last time
+
+    NSString *newText = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    NSString *slice = nil;
+    if (newText.length > (NSUInteger)seen) {
+        slice = [newText substringFromIndex:(NSUInteger)seen];
+    }
+    if (slice.length == 0) return;
+
+    // Persist "seen" now so a crash can never re-alert the user on every launch.
+    [[@(total) description] writeToFile:seenPath atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+
+    // Trim to a readable chunk (first ~1800 chars) — the rest stays in crash.log
+    // and can be consulted on demand; the alert is a teaser, not a dump.
+    NSString *display = slice;
+    if (display.length > 1800) display = [display substringToIndex:1800];
+    NSString *title = @"Crash détecté";
+    NSString *message = [NSString stringWithFormat:
+        @"Un crash vient d'être capturé (création de compte ?). Copie la stack ci-dessous et colle-la à l'agent.\n\n%@",
+        display];
+
+    UIAlertController *a = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
+    [a addAction:[UIAlertAction actionWithTitle:@"Copier la stack" style:UIAlertActionStyleDefault handler:^(UIAlertAction *_) {
+        [UIPasteboard.generalPasteboard setString:slice];
+    }]];
+    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+    [host presentViewController:a animated:YES completion:nil];
 }
 
 #pragma mark - UIAdaptivePresentationControllerDelegate

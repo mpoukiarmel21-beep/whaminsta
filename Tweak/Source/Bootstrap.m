@@ -28,10 +28,20 @@ static NSString *IVKeychainPrefixForContainer(IVContainer *c) {
 }
 
 // Shows the floating button once the app UI is up. Idempotent; observes
-// UIApplicationDidBecomeActive and also fires a delayed fallback.
+// UIApplicationDidBecomeActive and also fires a delayed fallback. After the
+// FIRST presentation we also surface any crash stack captured on the previous
+// run (in-app alert, no Files app needed) — deliberately only on the cold-launch
+// fallback, never on DidBecomeActive re-fires, so a warm resume never re-alerts.
 static void IVScheduleFloatingButton(void) {
     void (^present)(void) = ^{
         [[IVFloatingButton shared] show];
+    };
+    void (^presentAndReport)(void) = ^{
+        [[IVFloatingButton shared] show];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [[IVFloatingButton shared] presentPendingCrashReport];
+        });
     };
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                       object:nil
@@ -39,7 +49,7 @@ static void IVScheduleFloatingButton(void) {
                                                   usingBlock:^(NSNotification *n) { present(); }];
     // Fallback in case the app is already active by the time we get here.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), present);
+                   dispatch_get_main_queue(), presentAndReport);
 }
 
 // The cid this process actually booted (and applied isolation) for. Set ONCE in
@@ -128,11 +138,27 @@ static const int IVCrashSignals[] = { SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGFPE, 
 // pointer (NSUncaughtExceptionHandler is a function pointer, NOT a block — a
 // block literal fails to compile on modern SDKs).
 static NSUncaughtExceptionHandler *IVPriorExceptionHandler = NULL;
+
+// Append a crash entry to the pre-opened crash.log fd. Safe to call from the
+// ObjC exception handler (not async-signal context — that is the signal layer).
+static void IVAppendCrashEntry(NSString *header, NSString *body) {
+    if (IVCrashLogFD < 0) return;
+    NSString *entry = [NSString stringWithFormat:@"\n======== %@ ========\n%@\n======== END %@ ========\n",
+                       header, body, header];
+    NSData *d = [entry dataUsingEncoding:NSUTF8StringEncoding];
+    if (d.length) {
+        write(IVCrashLogFD, d.bytes, (size_t)d.length);
+        fsync(IVCrashLogFD);
+    }
+}
+
 static void IVExceptionCrashHandler(NSException *ex) {
+    NSString *body = [NSString stringWithFormat:
+        @"UNCAUGHT EXCEPTION %@: %@\n%@",
+        ex.name, ex.reason, [[ex callStackSymbols] componentsJoinedByString:@"\n"]];
+    IVAppendCrashEntry(@"CRASH exception", body);
     @autoreleasepool {
-        [[IVDiagnostics shared] error:[NSString stringWithFormat:
-            @"UNCAUGHT EXCEPTION %@: %@\n%@",
-            ex.name, ex.reason, [[ex callStackSymbols] componentsJoinedByString:@"\n"]]];
+        [[IVDiagnostics shared] error:body];
     }
     if (IVPriorExceptionHandler) IVPriorExceptionHandler(ex);
 }

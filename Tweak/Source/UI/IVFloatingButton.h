@@ -24,6 +24,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// button is already visible.
 - (void)restoreButtonAfterExternalDismiss;
 
+/// Present an in-app alert surfacing any crash stack written since the last
+/// time one was shown (so the user can copy it without touching the Files app).
+/// Reads <realHome>/Documents/whaminsta/logs/crash.log, tracks the already-shown
+/// byte offset in the same dir (crash.seen), and presents a "Copier la stack"
+/// alert with the new entries when present. No-op otherwise.
+- (void)presentPendingCrashReport;
+
 @end
 
 NS_ASSUME_NONNULL_END
