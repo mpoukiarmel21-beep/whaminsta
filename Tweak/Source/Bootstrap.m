@@ -169,10 +169,11 @@ static void IVSignalCrashHandler(int signo, siginfo_t *info, void *context) {
     void *frames[128];
     int n = backtrace(frames, (int)(sizeof(frames) / sizeof(frames[0])));
     if (IVCrashLogFD >= 0) {
-        char header[96];
+        char header[160];
         int hlen = snprintf(header, sizeof(header),
-                            "\n======== CRASH signal=%d si_code=%d time=%lld ========\n",
-                            signo, info ? info->si_code : -1, (long long)time(NULL));
+                            "\n======== CRASH signal=%d si_code=%d addr=%p time=%lld ========\n",
+                            signo, info ? info->si_code : -1,
+                            info ? info->si_addr : NULL, (long long)time(NULL));
         if (hlen > 0) { if (hlen >= (int)sizeof(header)) hlen = (int)sizeof(header) - 1; write(IVCrashLogFD, header, (size_t)hlen); }
         backtrace_symbols_fd(frames, n, IVCrashLogFD);
         static const char footer[] = "======== END CRASH ========\n";
@@ -200,11 +201,23 @@ static void IVInstallCrashLogger(void) {
     IVPriorExceptionHandler = NSGetUncaughtExceptionHandler();
     NSSetUncaughtExceptionHandler(IVExceptionCrashHandler);
 
-    // Layer 2: fatal signals (async-signal-safe path only).
+    // Layer 2: fatal signals (async-signal-safe path only). Run the handler on a
+    // dedicated alternate stack: a stack-overflow crash (the exact class the
+    // sister INSTA project found at the signup name step) faults on the
+    // EXHAUSTED stack, so without sigaltstack the handler itself can't run and
+    // NO log is written — the in-app alert then shows nothing and the crash
+    // stays invisible. With an altstack the signal is always recorded.
+    static char sIVAltStack[256 * 1024];
+    stack_t ss;
+    ss.ss_sp = sIVAltStack;
+    ss.ss_size = sizeof(sIVAltStack);
+    ss.ss_flags = 0;
+    sigaltstack(&ss, NULL);
+
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_sigaction = IVSignalCrashHandler;
-    sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
+    sa.sa_flags = SA_SIGINFO | SA_RESETHAND | SA_ONSTACK;
     sigemptyset(&sa.sa_mask);
     for (size_t i = 0; i < sizeof(IVCrashSignals) / sizeof(IVCrashSignals[0]); i++) {
         sigaction(IVCrashSignals[i], &sa, NULL);

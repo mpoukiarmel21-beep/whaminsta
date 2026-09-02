@@ -4,6 +4,7 @@
 #import "../Util/IVDiagnostics.h"
 #import <CoreLocation/CoreLocation.h>
 #import <objc/runtime.h>
+#import <time.h>
 
 #pragma mark - Current fake location (read live from the active container)
 
@@ -48,6 +49,16 @@ static BOOL gInstalled = NO;
 // have the real GPS running for this manager.
 static const void *kIVFakeTimerKey = &kIVFakeTimerKey;
 static const void *kIVRealOnKey = &kIVRealOnKey;
+// Loop-breakers (signup crash): the last fake-delivery time and whether the
+// authorization callback has already been fired for this manager.
+static const void *kIVLastFakeDeliverKey = &kIVLastFakeDeliverKey;
+static const void *kIVAuthNotifiedKey = &kIVAuthNotifiedKey;
+
+static NSTimeInterval IVMonotonicNow(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (NSTimeInterval)ts.tv_sec + ts.tv_nsec / 1e9;
+}
 
 static BOOL IVRealOn(CLLocationManager *mgr) {
     return [objc_getAssociatedObject(mgr, kIVRealOnKey) boolValue];
@@ -63,6 +74,15 @@ static void IVSetRealOn(CLLocationManager *mgr, BOOL on) {
 static void IVDeliverFake(CLLocationManager *mgr) {
     CLLocation *fake = IVCurrentFakeLocation();
     if (!fake) return;
+    // Loop-breaker: a delegate that restarts updates on every fix would otherwise
+    // drive an unbounded deliver→start→deliver loop (main-queue starvation =
+    // watchdog kill — the "crash at the signup name step" class). Real GPS
+    // delivers at hardware cadence; mirror that floor here. The 1s reconcile
+    // timer still delivers, so the fake location keeps flowing.
+    NSTimeInterval now = IVMonotonicNow();
+    NSNumber *last = objc_getAssociatedObject(mgr, kIVLastFakeDeliverKey);
+    if (last && (now - last.doubleValue) < 0.5) return;
+    objc_setAssociatedObject(mgr, kIVLastFakeDeliverKey, @(now), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     id<CLLocationManagerDelegate> del = mgr.delegate;
     if ([del respondsToSelector:@selector(locationManager:didUpdateLocations:)]) {
         [del locationManager:mgr didUpdateLocations:@[ fake ]];
@@ -74,6 +94,14 @@ static void IVDeliverFake(CLLocationManager *mgr) {
 // authorized, so we just nudge the delegate to (re)query and start streaming.
 // Main-thread only, per the delegate contract.
 static void IVNotifyAuthorized(CLLocationManager *mgr) {
+    // Loop-breaker: real CLLocationManager fires the authorization callback only
+    // when the status CHANGES. Firing it on EVERY requestWhenInUse call lets a
+    // delegate that re-requests inside its own callback spin an unbounded
+    // notify→request→notify loop (watchdog kill at the signup name step).
+    // Once per manager matches the real semantics; the app already sees
+    // authorizedWhenInUse from the -authorizationStatus hook on every read.
+    if ([objc_getAssociatedObject(mgr, kIVAuthNotifiedKey) boolValue]) return;
+    objc_setAssociatedObject(mgr, kIVAuthNotifiedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     dispatch_async(dispatch_get_main_queue(), ^{
         id<CLLocationManagerDelegate> del = mgr.delegate;
         if ([del respondsToSelector:@selector(locationManagerDidChangeAuthorization:)]) {
