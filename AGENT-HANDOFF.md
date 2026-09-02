@@ -8,36 +8,35 @@ sans jailbreak (dylib injectée + re-sign Sideloadly). Repo public :
 `com.burbn.instagram_442.0.0_und3fined.ipa` (InstaVault release `v1.0-ipa`,
 asset inchangé depuis le 2026-08-20 — vérifié).
 
-**build-13 livré** (run `33501750458` SUCCESS) :
-`https://github.com/mpoukiarmel21-beep/whaminsta/releases/download/build-13/whaminsta.ipa`
-= code build-8 + **crash logger + alerte in-app**. Au lancement suivant un
-crash, Instagram affiche une alerte « Crash détecté » avec la stack et un
-bouton « Copier la stack » (plus besoin d'aller dans l'app Fichiers). Le
-logger capte exceptions ObjC **et** signaux fatals, les deux dans
-`<realHome>/Documents/whaminsta/logs/crash.log` (fd pré-ouvert, offset "déjà
-vu" persisté dans `crash.seen`).
+**build-14 livré** (run `33619495886` SUCCESS) :
+`https://github.com/mpoukiarmel21-beep/whaminsta/releases/download/build-14/whaminsta.ipa`
+= build-13 + **2 correctifs du crash « saisie du nom au signup »** + logger
+amélioré. (1) `IVLocationSpoof` : anti-boucles — `IVDeliverFake` limité à 1
+livraison/0,5 s par manager (un delegate qui redémarre les updates à chaque fix
+ne peut plus affamer la main queue → kill watchdog), et `IVNotifyAuthorized` ne
+tire plus le callback d'autorisation qu'UNE fois par manager (sémantique réelle
+CLLocationManager : un re-request dans le callback ne reboucle plus). La fausse
+localisation continue de couler via le timer 1 s — **feature inchangée**.
+(2) `Bootstrap` : `sigaltstack` + `SA_ONSTACK` → le handler s'exécute même sur
+un stack overflow (classe exacte du crash trouvé par le projet INSTA au même
+étape) ; `si_addr` consigné. L'alerte in-app peut désormais remonter ce qui
+était invisible.
 
 ## En cours
 
-- **OpenCode — collecte de la stack via alerte in-app** (2026-09-01).
-  Avertissement : build-8 et build-11 ont le **même code + la même base IPA**
-  (base InstaVault `v1.0-ipa` inchangée depuis le 20/08 — vérifié), or
-  l'utilisateur dit build-8 OK mais build-11/12 crash. Le crash à la création
-  de compte existait donc probablement déjà dans build-8. L'utilisateur a
-  **refusé de naviguer dans Fichiers** → nouveau mécanisme : alerte auto dans
-  l'app au prochain lancement + bouton copier. En attente de la stack.
+- **OpenCode — build-14 en test utilisateur** (2026-09-02). Si le crash
+  persiste, l'alerte « Crash détecté » affichera ENFIN la stack (même pour un
+  stack overflow) → la coller ici pour le fix certain.
 
 ## Prochaine étape
 
-1. **User : installer build-13**, reproduire le crash (Instagram → Créer un
-   compte → nom → crash), **relancer Instagram**, attendre ~3 s, copier la
-   stack via l'alerte « Crash détecté » et la coller ici.
-2. L'analyse de la stack déterminera : (a) crash dans le base IPA Instagram
-   lui-même (→ hors de notre portée, changer de base/e d'IPA), ou
-   (b) crash dans `whaminsta.dylib` (→ hook fautif à corriger).
-3. Si l'alerte ne s'affiche pas : vérifier que build-13 est bien installé
-   (et non build-12), puis que `<realHome>/Documents/whaminsta/logs/crash.log`
-   existe (sinon = pas de capture = crash avant l'installation du logger).
+1. **User : installer build-14**, reproduire (Instagram → Créer un compte →
+   nom). Soit ça ne crashe plus (cause = boucle location), soit l'alerte au
+   relancement donne la stack → la coller ici.
+2. Si la stack montre des frames Instagram sans `whaminsta.dylib` → crash dans
+   le base IPA cracké → changer de base (seule issue restante).
+3. Builds suivants : `gh workflow run build.yml --repo mpoukiarmel21-beep/whaminsta
+   --ref master -f ipa_url=https://github.com/mpoukiarmel21-beep/InstaVault/releases/download/v1.0-ipa/com.burbn.instagram_442.0.0_und3fined.ipa`
 
 ## Blocages / risques
 
@@ -51,6 +50,24 @@ vu" persisté dans `crash.seen`).
   issue.
 
 ## Journal
+
+- **2026-09-02 (OpenCode)** — **build-14 : correctif du crash « saisie du nom
+  au signup »**. Revue complète de TOUS les hooks (location, keychain, device,
+  locale, prefs, app-group, hardening, camera, container) : aucun bug
+  déterministe évident — d'où l'échec du fix aveugle `e88da93` (reverti).
+  Cause la plus probable identifiée par comparaison avec le projet INSTA sœur
+  (même symptôme, racine = récursion location au signup) : **boucle infinie
+  dans le chemin location synthétique** quand Instagram interroge le GPS à
+  l'étape nom — soit `deliver→start→deliver`, soit `notify→request→notify`
+  (starvation main queue = kill watchdog, invisible pour l'ancien logger).
+  Fix chirurgical : anti-boucles par manager (flag associé + rate-limit 0,5 s),
+  sémantique calquée sur CLLocationManager réel, **localisation inchangée**
+  (fixes livrés par le timer 1 s). + `sigaltstack`/`SA_ONSTACK`/`si_addr` pour
+  que l'alerte in-app capture ENFIN les stack-overflow. Run `33619495886`
+  SUCCESS → release **build-14**. IVHardening (completion DeviceCheck sur file
+  background) = piste n°2 volontairement NON touchée (risque de deadlock si
+  Instagram attend de façon synchrone) — à activer seulement si la stack
+  l'indique.
 
 - **2026-09-01 (OpenCode)** — build-13 (alerte in-app « Copier la stack »).
   Suite au refus de l'utilisateur d'ouvrir Fichiers, implémenté
