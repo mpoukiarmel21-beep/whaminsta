@@ -8,38 +8,39 @@ sans jailbreak (dylib injectée + re-sign Sideloadly). Repo public :
 `com.burbn.instagram_442.0.0_und3fined.ipa` (InstaVault release `v1.0-ipa`,
 asset inchangé depuis le 2026-08-20 — vérifié).
 
-**build-15 en test utilisateur** (run `33627557672` SUCCESS) :
+**build-16 livré** (run `37091882755` SUCCESS) :
+`https://github.com/mpoukiarmel21-beep/whaminsta/releases/download/build-16/whaminsta.ipa`
+= build-15 **+ correction du hang à l'étape nom** + isolation du nom d'appareil.
+Build-15 (run `33627557672` SUCCESS) =
 `https://github.com/mpoukiarmel21-beep/whaminsta/releases/download/build-15/whaminsta.ipa`
 = **alignement complet sur InstaVault** (projet sœur où la création de compte
-fonctionne). Diff des deux projets : whaminsta hookait des surfaces qu'InstaVault
-n'a jamais eues (ou a retirées « for stability » — commentaire documenté dans
-son IVHardwareHook). Ces surfaces sont exactement celles qu'active le
-fingerprinting d'Instagram à l'étape nom du signup.
+fonctionne) : whaminsta hookait des surfaces qu'InstaVault n'a jamais eues (ou a
+retirées « for stability » — commentaire documenté dans son IVHardwareHook), et
+ce sont exactement celles qu'active le fingerprinting d'Instagram à l'étape nom
+du signup.
 
-**Retour utilisateur sur build-15 : le crash est devenu un HANG** — l'écran
-tourne indéfiniment à l'étape « nom ». Cause identifiée dans le code (voir
-Journal, 2026-10-03) : le rate-limit 0,5 s ajouté en build-14 **jetait le
-callback** de `-requestLocation`, donc Instagram n'attendait plus jamais de
-réponse. Corrigé en local (pas encore livré).
+**Retour utilisateur build-15 : le crash était devenu un HANG** — spinner
+infini au champ nom. Cause identifiée et corrigée en build-16 (voir Journal,
+2026-10-03) : le rate-limit 0,5 s ajouté en build-14 **jetait le callback** de
+`-requestLocation`, donc Instagram attendait une réponse qui n'arrivait jamais.
 
 ## En cours
 
-- **OpenCode — build-16 en préparation** (2026-10-03). Corrections locales
-  appliquées, non encore commitées : garde de récursion location + isolation
-  `UIDevice.name`. À builder puis livrer.
+- **User — test build-16** (2026-10-03). Déposée aussi dans
+  `D:\IPA APP\NEW INSTA.ipa`. À vérifier : Instagram → Créer un compte →
+  nom doit passer, la localisation fake doit s'appliquer.
 
 ## Prochaine étape
 
-1. **Commit + push** des correctifs locaux (3 fichiers : IVLocationSpoof.m,
-   IVDeviceSpoof.m, IVDeviceSpoof.h), puis `gh workflow run build.yml --repo
-   mpoukiarmel21-beep/whaminsta --ref master -f
-   ipa_url=https://github.com/mpoukiarmel21-beep/InstaVault/releases/download/v1.0-ipa/com.burbn.instagram_442.0.0_und3fined.ipa`
-2. **User : installer build-16** et reproduire (Instagram → Créer un compte →
-   nom). Le spinner doit passer, la localisation fake doit s'appliquer.
-3. Si le hang persiste : extraire `tweak.log` (`<HOME real>/Documents/whaminsta/logs/`)
-   — c'est un comportement réseau/Instagram, plus un callback non délivré par nous.
-4. Si crash (peu probable) : l'alerte « Crash détecté » capture les
+1. **User : installer build-16** et reproduire (Instagram → Créer un compte →
+   nom). Le spinner doit passer.
+2. Si le hang persiste : extraire `tweak.log` (`<HOME real>/Documents/whaminsta/logs/`)
+   — ce serait alors un comportement réseau/Instagram, plus un callback non
+   délivré par nous.
+3. Si crash (peu probable) : l'alerte « Crash détecté » capture les
    stack-overflow (sigaltstack, build-14) → coller la stack ici.
+4. Builds suivants : `gh workflow run build.yml --repo mpoukiarmel21-beep/whaminsta
+   --ref master -f ipa_url=https://github.com/mpoukiarmel21-beep/InstaVault/releases/download/v1.0-ipa/com.burbn.instagram_442.0.0_und3fined.ipa`
 
 ## Blocages / risques
 
@@ -79,7 +80,11 @@ réponse. Corrigé en local (pas encore livré).
   contre-vérification (modèle et version iOS restent réels volontairement pour
   rester cohérents avec sysctl/NSProcessInfo). Ajout d'un nom déterministe par
   cid. + `IVDeviceSpoof.h` remis en phase : il documentait encore sysctl/uname/
-  MGCopyAnswer et le spoof de version iOS, tous retirés en build-15.
+  MGCopyAnswer et le spoof de version iOS, tous retirés en build-15. Commit
+  `e8b69f3`, run `37091882755` SUCCESS → release **build-16**, également
+  déposée dans `D:\IPA APP\NEW INSTA.ipa` (l'IPA précédente de ce chemin,
+  321 993 299 o, était un build **Regram** sans `whaminsta.dylib` —
+  sauvegardée en `D:\IPA APP\NEW INSTA (avant 2026-10-03).ipa`).
 
 - **2026-09-02 (OpenCode) — build-15 : alignement InstaVault (la vraie cause)**.
   Utilisateur : « avec InstaVault j'arrive à bien créer le compte » → diff
