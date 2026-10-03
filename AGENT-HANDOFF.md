@@ -8,7 +8,7 @@ sans jailbreak (dylib injectée + re-sign Sideloadly). Repo public :
 `com.burbn.instagram_442.0.0_und3fined.ipa` (InstaVault release `v1.0-ipa`,
 asset inchangé depuis le 2026-08-20 — vérifié).
 
-**build-15 livré** (run `33627557672` SUCCESS) :
+**build-15 en test utilisateur** (run `33627557672` SUCCESS) :
 `https://github.com/mpoukiarmel21-beep/whaminsta/releases/download/build-15/whaminsta.ipa`
 = **alignement complet sur InstaVault** (projet sœur où la création de compte
 fonctionne). Diff des deux projets : whaminsta hookait des surfaces qu'InstaVault
@@ -16,21 +16,30 @@ n'a jamais eues (ou a retirées « for stability » — commentaire documenté d
 son IVHardwareHook). Ces surfaces sont exactement celles qu'active le
 fingerprinting d'Instagram à l'étape nom du signup.
 
+**Retour utilisateur sur build-15 : le crash est devenu un HANG** — l'écran
+tourne indéfiniment à l'étape « nom ». Cause identifiée dans le code (voir
+Journal, 2026-10-03) : le rate-limit 0,5 s ajouté en build-14 **jetait le
+callback** de `-requestLocation`, donc Instagram n'attendait plus jamais de
+réponse. Corrigé en local (pas encore livré).
+
 ## En cours
 
-- **OpenCode — build-15 en test utilisateur** (2026-09-02). L'utilisateur
-  confirme : « avec InstaVault j'arrive à bien créer le compte » → les
-  surfaces hookées ONLY par whaminsta sont la cause. Alignées/supprimées.
+- **OpenCode — build-16 en préparation** (2026-10-03). Corrections locales
+  appliquées, non encore commitées : garde de récursion location + isolation
+  `UIDevice.name`. À builder puis livrer.
 
 ## Prochaine étape
 
-1. **User : installer build-15** et reproduire (Instagram → Créer un compte →
-   nom). La création doit désormais fonctionner comme sur InstaVault.
-2. Si crash persistant (peu probable) : l'alerte « Crash détecté » du
-   build-15 capture désormais les stack-overflow (sigaltstack, build-14) →
-   coller la stack ici.
-3. Builds suivants : `gh workflow run build.yml --repo mpoukiarmel21-beep/whaminsta
-   --ref master -f ipa_url=https://github.com/mpoukiarmel21-beep/InstaVault/releases/download/v1.0-ipa/com.burbn.instagram_442.0.0_und3fined.ipa`
+1. **Commit + push** des correctifs locaux (3 fichiers : IVLocationSpoof.m,
+   IVDeviceSpoof.m, IVDeviceSpoof.h), puis `gh workflow run build.yml --repo
+   mpoukiarmel21-beep/whaminsta --ref master -f
+   ipa_url=https://github.com/mpoukiarmel21-beep/InstaVault/releases/download/v1.0-ipa/com.burbn.instagram_442.0.0_und3fined.ipa`
+2. **User : installer build-16** et reproduire (Instagram → Créer un compte →
+   nom). Le spinner doit passer, la localisation fake doit s'appliquer.
+3. Si le hang persiste : extraire `tweak.log` (`<HOME real>/Documents/whaminsta/logs/`)
+   — c'est un comportement réseau/Instagram, plus un callback non délivré par nous.
+4. Si crash (peu probable) : l'alerte « Crash détecté » capture les
+   stack-overflow (sigaltstack, build-14) → coller la stack ici.
 
 ## Blocages / risques
 
@@ -44,6 +53,33 @@ fingerprinting d'Instagram à l'étape nom du signup.
   issue.
 
 ## Journal
+
+- **2026-10-03 (OpenCode) — hang « étape nom » : le rate-limit jetait le
+  callback**. Après build-15 le symptom n'est plus un crash mais un spinner
+  infini au champ nom. Revue de IVLocationSpoof.m : `IVDeliverFakeOnce` avait
+  un rate-limit 0,5 s (`kIVLastFakeDeliverKey`) hérité du build-14. Instagram
+  appelle `-startUpdatingLocation` puis `-requestLocation` de suite pendant la
+  validation du nom → la **deuxième** demande tombait dans la fenêtre et son
+  callback était **supprimé sans explication** → l'app attend une réponse qui
+  n'arrivera jamais. C'est le même chemin location que l'ancien crash, avec un
+  symptôme différent : build-14 a remplacé la boucle par un abandon. Fix : le
+  rate-limit (temporel, jette des demandes légitimes) est remplacé par une
+  **garde de récursion** `gInDelivery` (booléen, ne bloque que la ré-entrance
+  depuis l'intérieur de notre propre livraison — la seule forme qui peut
+  réellement boucler), livraison **synchrone sur main** (plus de `dispatch_async`
+  qui rendait les deux demandes inséparables), et fallback
+  `locationManager:didFailWithError:`/`kCLErrorLocationUnknown` quand aucun
+  délégué ne sait recevoir un fix — jamais de repli sur le vrai
+  `-startUpdatingLocation` (sinon fuite de la vraie position). Résultat :
+  **chaque demande reçoit une réponse**, et le GPS réel n'est jamais démarré.
+  + audit isolation : surfaces déjà colmatées (prefs, app-group, files, IDFV/
+  IDFA, locale/heure, DeviceCheck/Attest, AutoFill, keychain y compris la clé
+  device Meta via tag `kSecClassKey` namespacé). **Restait `UIDevice.name`** —
+  même nom d'appareil dans tous les conteneurs, seule surface restante sans
+  contre-vérification (modèle et version iOS restent réels volontairement pour
+  rester cohérents avec sysctl/NSProcessInfo). Ajout d'un nom déterministe par
+  cid. + `IVDeviceSpoof.h` remis en phase : il documentait encore sysctl/uname/
+  MGCopyAnswer et le spoof de version iOS, tous retirés en build-15.
 
 - **2026-09-02 (OpenCode) — build-15 : alignement InstaVault (la vraie cause)**.
   Utilisateur : « avec InstaVault j'arrive à bien créer le compte » → diff

@@ -4,7 +4,6 @@
 #import "../Util/IVDiagnostics.h"
 #import <CoreLocation/CoreLocation.h>
 #import <objc/runtime.h>
-#import <time.h>
 
 // ============================================================================
 // Minimal, battle-tested location spoof — the EXACT hook set InstaVault ships
@@ -50,30 +49,52 @@ static void (*orig_start)(id, SEL) = NULL;
 static void (*orig_request)(id, SEL) = NULL;
 static BOOL gInstalled = NO;
 
-// Loop insurance (kept from build-14): a delegate that restarts updates on
-// every fix must not be able to drive an unbounded deliver->start->deliver
-// loop. InstaVault survives without it, but the floor is invisible when the
-// app behaves and costs nothing.
-static const void *kIVLastFakeDeliverKey = &kIVLastFakeDeliverKey;
+// Delivery guard.
+//
+// build-14 guarded the fake-fix path with a 0.5s time-based rate limit. That
+// stopped the signup recursion, but it introduced a HANG: Instagram asks for
+// location with -startUpdatingLocation and -requestLocation back-to-back while
+// validating the signup NAME, so the second call landed inside the window and
+// its callback was simply thrown away. The caller then waits forever on a
+// callback that will never arrive — the app sits on a spinner at the name field.
+//
+// A DEPTH guard replaces it. It blocks only genuine re-entrancy (a delegate
+// that restarts updates from inside -locationManager:didUpdateLocations:),
+// which is the only shape that can actually recurse. Every fresh, independent
+// request is always given a callback — a request is never silently dropped.
+static BOOL gInDelivery = NO;
 
-static NSTimeInterval IVMonotonicNow(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (NSTimeInterval)ts.tv_sec + ts.tv_nsec / 1e9;
-}
-
-// Deliver ONE synthetic fix to the manager's delegate (main thread, per the
-// delegate contract). One-shot per start/request call — no recurring timer.
+// Delivers ONE synthetic fix to the manager's delegate. Called synchronously
+// when already on the main thread (CLLocationManager's delegate contract) so
+// the depth guard spans the whole nested call, and hops to main only when the
+// hook was entered off-main.
 static void IVDeliverFakeOnce(CLLocationManager *mgr) {
-    CLLocation *fake = IVCurrentFakeLocation();
-    if (!fake) return;
-    NSTimeInterval now = IVMonotonicNow();
-    NSNumber *last = objc_getAssociatedObject(mgr, kIVLastFakeDeliverKey);
-    if (last && (now - last.doubleValue) < 0.5) return;
-    objc_setAssociatedObject(mgr, kIVLastFakeDeliverKey, @(now), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{ IVDeliverFakeOnce(mgr); });
+        return;
+    }
+    if (gInDelivery) return;   // re-entrant restart from inside our own delivery
+
     id<CLLocationManagerDelegate> del = mgr.delegate;
-    if ([del respondsToSelector:@selector(locationManager:didUpdateLocations:)]) {
-        [del locationManager:mgr didUpdateLocations:@[ fake ]];
+    CLLocation *fake = IVCurrentFakeLocation();
+    gInDelivery = YES;
+    @try {
+        if (fake && [del respondsToSelector:@selector(locationManager:didUpdateLocations:)]) {
+            [del locationManager:mgr didUpdateLocations:@[ fake ]];
+        } else if ([del respondsToSelector:@selector(locationManager:didFailWithError:)]) {
+            // Nothing usable to deliver, but the caller IS waiting on something.
+            // Report the benign "location unknown" error so the app's flow can
+            // continue instead of spinning forever. Deliberately NOT a fall back
+            // to the real -startUpdatingLocation: that would start the device's
+            // GPS and leak the true position, defeating the whole point of the
+            // container's configured location.
+            NSError *err = [NSError errorWithDomain:kCLErrorDomain
+                                               code:kCLErrorLocationUnknown
+                                           userInfo:nil];
+            [del locationManager:mgr didFailWithError:err];
+        }
+    } @finally {
+        gInDelivery = NO;
     }
 }
 
@@ -105,9 +126,7 @@ static void IVDeliverFakeOnce(CLLocationManager *mgr) {
         orig_start = (void (*)(id, SEL))method_getImplementation(mStart);
         method_setImplementation(mStart, imp_implementationWithBlock(^(id _self) {
             if ([IVLocationSpoof isActive]) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    IVDeliverFakeOnce((CLLocationManager *)_self);
-                });
+                IVDeliverFakeOnce((CLLocationManager *)_self);
             } else {
                 orig_start(_self, @selector(startUpdatingLocation));
             }
@@ -121,9 +140,7 @@ static void IVDeliverFakeOnce(CLLocationManager *mgr) {
         orig_request = (void (*)(id, SEL))method_getImplementation(mReq);
         method_setImplementation(mReq, imp_implementationWithBlock(^(id _self) {
             if ([IVLocationSpoof isActive]) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    IVDeliverFakeOnce((CLLocationManager *)_self);
-                });
+                IVDeliverFakeOnce((CLLocationManager *)_self);
             } else {
                 orig_request(_self, @selector(requestLocation));
             }
